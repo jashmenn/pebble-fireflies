@@ -19,16 +19,23 @@ PBL_APP_INFO(MY_UUID,
 #define max(a,b) a > b ? a : b
 #define min(a,b) ((a) > (b) ? (a) : (b))
 
+typedef struct FPoint
+{
+  float x;
+  float y;
+} FPoint;
+
 // typedefs
 typedef struct FParticle 
 {
-  GPoint position;
-  GPoint grav_center;
+  FPoint position;
+  FPoint grav_center;
   float dx;
   float dy;
   float power;
 } FParticle;
 #define FParticle(px, py, gx, gy, power) ((FParticle){{(px), (py)}, {(gx), (gy)}, 0.0F, 0.0F, power})
+#define FPoint(x, y) ((FPoint){(x), (y)})
 
 // globals
 FParticle particles[NUM_PARTICLES];
@@ -50,8 +57,7 @@ const GPathInfo SQUARE_POINTS = {
 
 GPath square_path;
 
-#define MAX_SPEED      1
-#define MAX_SPEED_NEG -1
+#define MAX_SPEED      1.0F
 
 int random_in_range(int min, int max) {
   return min + (int)(tinymt32_generate_float01(&rndstate) * ((max - min) + 1));
@@ -72,14 +78,14 @@ GPoint random_point_roughly_in_screen() {
                 random_in_range(-window.layer.frame.size.h*SCREEN_MARGIN, window.layer.frame.size.h+1+(window.layer.frame.size.h*SCREEN_MARGIN)));
 }
 
-#define JITTER 1.0F
+#define JITTER 0.5F
 
 void update_particle(int i) {
   // 
-  // if(tinymt32_generate_float01(&rndstate) < 0.4F) {
-  //   particles[i].dx += random_in_rangef(-JITTER, JITTER);
-  //   particles[i].dy += random_in_rangef(-JITTER, JITTER);
-  // }
+  if(tinymt32_generate_float01(&rndstate) < 0.4F) {
+    particles[i].dx += random_in_rangef(-JITTER, JITTER);
+    particles[i].dy += random_in_rangef(-JITTER, JITTER);
+  }
 
   // gravitate towards goal
   particles[i].dx += -(particles[i].position.x - particles[i].grav_center.x)/particles[i].power;
@@ -106,7 +112,9 @@ void update_particle(int i) {
 
 void draw_particle(GContext* ctx, int i) {
   // int size = max(1 + rand_between(-1,1), 0);
-  graphics_fill_circle(ctx, particles[i].position, 1);
+  graphics_fill_circle(ctx, GPoint((int)particles[i].position.x,
+                                   (int)particles[i].position.y),
+                       1);
 }
 
 void update_square_layer(Layer *me, GContext* ctx) {
@@ -167,7 +175,7 @@ void init_particles() {
   for(int i=0; i<NUM_PARTICLES; i++) {
     GPoint start = random_point_roughly_in_screen();
     GPoint goal = GPoint(window.layer.frame.size.w/2, window.layer.frame.size.h/2);
-    float initial_power = 100.0F;
+    float initial_power = 300.0F;
     particles[i] = FParticle(start.x, start.y, 
                              goal.x, goal.y, 
                              initial_power);
