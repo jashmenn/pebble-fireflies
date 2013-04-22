@@ -14,10 +14,10 @@ PBL_APP_INFO(MY_UUID,
              1, 0, /* App version */
              RESOURCE_ID_IMAGE_MENU_ICON,
              APP_INFO_WATCH_FACE);
-#define NUM_PARTICLES 100 
+#define NUM_PARTICLES 100
 #define COOKIE_MY_TIMER 1
 #define max(a,b) a > b ? a : b
-#define min(a,b) ((a) > (b) ? (a) : (b))
+#define minimum(a,b) ((a) < (b) ? (a) : (b))
 
 typedef struct FPoint
 {
@@ -33,8 +33,11 @@ typedef struct FParticle
   float dx;
   float dy;
   float power;
+  float size;
+  float goal_size;
+  float ds;
 } FParticle;
-#define FParticle(px, py, gx, gy, power) ((FParticle){{(px), (py)}, {(gx), (gy)}, 0.0F, 0.0F, power})
+#define FParticle(px, py, gx, gy, power) ((FParticle){{(px), (py)}, {(gx), (gy)}, 0.0F, 0.0F, power, 0.0F, 0.0F, 0.0F})
 #define FPoint(x, y) ((FPoint){(x), (y)})
 
 // globals
@@ -79,6 +82,8 @@ GPoint random_point_roughly_in_screen() {
 }
 
 #define JITTER 0.5F
+#define MAX_SIZE 3.0F
+#define MIN_SIZE 0.0F
 
 void update_particle(int i) {
   // 
@@ -108,13 +113,26 @@ void update_particle(int i) {
   if(particles[i].dx < 0.1F && particles[i].dy < 0.1F) {
     // particles[i].grav_center = random_point_roughly_in_screen();
   }
+
+  // update size
+  if((abs(particles[i].size - MIN_SIZE) < 0.001F) && (tinymt32_generate_float01(&rndstate) < 0.0008F)) {
+    particles[i].goal_size = MAX_SIZE;
+  }
+
+  if(abs(particles[i].size - MAX_SIZE) < 0.001F) {
+    particles[i].goal_size = MIN_SIZE;
+  }
+
+  particles[i].ds += -(particles[i].size - particles[i].goal_size)/30.0F;
+  particles[i].size += particles[i].ds;
+  if(particles[i].size > MAX_SIZE) particles[i].size = MAX_SIZE;
+  if(particles[i].size < MIN_SIZE) particles[i].size = MIN_SIZE;
 }
 
 void draw_particle(GContext* ctx, int i) {
-  // int size = max(1 + rand_between(-1,1), 0);
   graphics_fill_circle(ctx, GPoint((int)particles[i].position.x,
                                    (int)particles[i].position.y),
-                       1);
+                       particles[i].size);
 }
 
 void update_square_layer(Layer *me, GContext* ctx) {
@@ -127,7 +145,7 @@ void update_square_layer(Layer *me, GContext* ctx) {
   angle = (angle + 5) % 360;
 
   graphics_context_set_stroke_color(ctx, GColorWhite);
-  gpath_draw_outline(ctx, &square_path);
+  // gpath_draw_outline(ctx, &square_path);
 
   // update debug text layer
   static char test_text[100];
@@ -179,6 +197,7 @@ void init_particles() {
     particles[i] = FParticle(start.x, start.y, 
                              goal.x, goal.y, 
                              initial_power);
+    particles[i].size = particles[i].goal_size = 0.0F;
   }
 }
 
