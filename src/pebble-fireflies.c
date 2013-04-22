@@ -5,6 +5,7 @@
 #include "pebble_fonts.h"
 #include "xprintf.h"
 #include "common.h"
+#include "tinymt32.h"
 
 // defines
 #define MY_UUID { 0x74, 0x19, 0xF2, 0x5C, 0x82, 0x1B, 0x4B, 0xD8, 0x93, 0xD5, 0x98, 0x7E, 0x31, 0x15, 0xA8, 0xB6 }
@@ -15,6 +16,8 @@ PBL_APP_INFO(MY_UUID,
              APP_INFO_WATCH_FACE);
 #define NUM_PARTICLES 100 
 #define COOKIE_MY_TIMER 1
+#define max(a,b) a > b ? a : b
+#define min(a,b) ((a) > (b) ? (a) : (b))
 
 // typedefs
 typedef struct FParticle 
@@ -33,6 +36,7 @@ Window window;
 Layer square_layer;
 TextLayer text_header_layer;
 AppTimerHandle timer_handle;
+tinymt32_t rndstate;
 
 const GPathInfo SQUARE_POINTS = {
   4,
@@ -46,31 +50,63 @@ const GPathInfo SQUARE_POINTS = {
 
 GPath square_path;
 
-#define MAX_SPEED      2
-#define MAX_SPEED_NEG -2
+#define MAX_SPEED      1
+#define MAX_SPEED_NEG -1
+
+int random_in_range(int min, int max) {
+  return min + (int)(tinymt32_generate_float01(&rndstate) * ((max - min) + 1));
+}
+
+float random_in_rangef(float min, float max) {
+  return min + (float)(tinymt32_generate_float01(&rndstate) * ((max - min)));
+}
+
+GPoint random_point_in_screen() {
+  return GPoint(random_in_range(0, window.layer.frame.size.w+1), 
+                random_in_range(0, window.layer.frame.size.h+1));
+}
+
+#define SCREEN_MARGIN 0.0F
+GPoint random_point_roughly_in_screen() {
+  return GPoint(random_in_range(-window.layer.frame.size.w*SCREEN_MARGIN, window.layer.frame.size.w+1+(window.layer.frame.size.w*SCREEN_MARGIN)), 
+                random_in_range(-window.layer.frame.size.h*SCREEN_MARGIN, window.layer.frame.size.h+1+(window.layer.frame.size.h*SCREEN_MARGIN)));
+}
+
+#define JITTER 1.0F
 
 void update_particle(int i) {
+  // 
+  // if(tinymt32_generate_float01(&rndstate) < 0.4F) {
+  //   particles[i].dx += random_in_rangef(-JITTER, JITTER);
+  //   particles[i].dy += random_in_rangef(-JITTER, JITTER);
+  // }
+
   // gravitate towards goal
   particles[i].dx += -(particles[i].position.x - particles[i].grav_center.x)/particles[i].power;
   particles[i].dy += -(particles[i].position.y - particles[i].grav_center.y)/particles[i].power;
 
+
   // damping
-  particles[i].dx *= 0.8F;
-  particles[i].dy *= 0.8F;
+  particles[i].dx *= 0.999F;
+  particles[i].dy *= 0.999F;
 
   // snap to max
-  if(particles[i].dx > MAX_SPEED)     particles[i].dx = MAX_SPEED;
-  if(particles[i].dx < MAX_SPEED_NEG) particles[i].dx = MAX_SPEED_NEG;
-  if(particles[i].dy > MAX_SPEED)     particles[i].dy = MAX_SPEED;
-  if(particles[i].dy < MAX_SPEED_NEG) particles[i].dy = MAX_SPEED_NEG;
+  if(particles[i].dx >  MAX_SPEED) particles[i].dx =  MAX_SPEED;
+  if(particles[i].dx < -MAX_SPEED) particles[i].dx = -MAX_SPEED;
+  if(particles[i].dy >  MAX_SPEED) particles[i].dy =  MAX_SPEED;
+  if(particles[i].dy < -MAX_SPEED) particles[i].dy = -MAX_SPEED;
 
   particles[i].position.x += particles[i].dx;
   particles[i].position.y += particles[i].dy;
+
+  if(particles[i].dx < 0.1F && particles[i].dy < 0.1F) {
+    // particles[i].grav_center = random_point_roughly_in_screen();
+  }
 }
 
 void draw_particle(GContext* ctx, int i) {
-  int size = 1;
-  graphics_fill_circle(ctx, particles[i].position, size);
+  // int size = max(1 + rand_between(-1,1), 0);
+  graphics_fill_circle(ctx, particles[i].position, 1);
 }
 
 void update_square_layer(Layer *me, GContext* ctx) {
@@ -90,7 +126,10 @@ void update_square_layer(Layer *me, GContext* ctx) {
   // int now = sin_lookup(angle * 32768 / 90);
   // int then = linearmap(now, -65536, 65536, 0, 10);
 
-  xsprintf( test_text, "rand: %d", rand_between(1,5));
+
+  // unsigned int foo = tinymt32_generate_uint32(&rndstate);
+  xsprintf( test_text, "rand: %u", random_in_range(0,10));
+
   text_layer_set_text(&text_header_layer, test_text);
 
   graphics_context_set_fill_color(ctx, GColorWhite);
@@ -124,23 +163,22 @@ void handle_tick(AppContextRef ctx, PebbleTickEvent *t) {
   get_time(&current_time);
 }
 
-GPoint random_point_in_screen() {
-  return GPoint(rand_between(0, window.layer.frame.size.w+1), 
-                rand_between(0, window.layer.frame.size.h+1));
-}
-
 void init_particles() {
   for(int i=0; i<NUM_PARTICLES; i++) {
-    GPoint start = random_point_in_screen();
-    GPoint goal = random_point_in_screen();
+    GPoint start = random_point_roughly_in_screen();
+    GPoint goal = GPoint(window.layer.frame.size.w/2, window.layer.frame.size.h/2);
+    float initial_power = 100.0F;
     particles[i] = FParticle(start.x, start.y, 
                              goal.x, goal.y, 
-                             1.0F);
+                             initial_power);
   }
 }
 
 void handle_init(AppContextRef ctx) {
   (void)ctx;
+
+  uint32_t seed = 0;
+  tinymt32_init(&rndstate, seed);
 
   window_init(&window, "Fireflies");
   window_stack_push(&window, true /* Animated */);
