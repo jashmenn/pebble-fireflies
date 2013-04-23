@@ -15,11 +15,13 @@ PBL_APP_INFO(MY_UUID,
              1, 0, /* App version */
              RESOURCE_ID_IMAGE_MENU_ICON,
              APP_INFO_WATCH_FACE);
-#define NUM_PARTICLES 200
+#define NUM_PARTICLES 100
 #define COOKIE_MY_TIMER 1
 #define COOKIE_SWARM_TIMER 2
 #define max(a,b) a > b ? a : b
 #define minimum(a,b) ((a) < (b) ? (a) : (b))
+#define NORMAL_POWER 300.0F
+#define TIGHT_POWER 1.0F
 
 typedef struct FPoint
 {
@@ -49,6 +51,7 @@ Layer square_layer;
 TextLayer text_header_layer;
 AppTimerHandle timer_handle;
 tinymt32_t rndstate;
+int showing_time = 0;
 
 const GPathInfo SQUARE_POINTS = {
   4,
@@ -63,6 +66,13 @@ const GPathInfo SQUARE_POINTS = {
 GPath square_path;
 
 #define MAX_SPEED      1.0F
+
+static const GBitmap* number_bitmaps[10] = { 
+  &s_number_0_bitmap, &s_number_1_bitmap, &s_number_2_bitmap, 
+  &s_number_3_bitmap, &s_number_4_bitmap, &s_number_5_bitmap,
+  &s_number_6_bitmap, &s_number_7_bitmap, &s_number_8_bitmap, 
+  &s_number_9_bitmap 
+};
 
 int random_in_range(int min, int max) {
   return min + (int)(tinymt32_generate_float01(&rndstate) * ((max - min) + 1));
@@ -117,16 +127,21 @@ void update_particle(int i) {
   }
 
   // update size
-  if((abs(particles[i].size - MIN_SIZE) < 0.001F) && (tinymt32_generate_float01(&rndstate) < 0.0008F)) {
-    particles[i].goal_size = MAX_SIZE;
-  }
 
-  if(abs(particles[i].size - MAX_SIZE) < 0.001F) {
-    particles[i].goal_size = MIN_SIZE;
+  if(showing_time == 0) {
+    if((abs(particles[i].size - MIN_SIZE) < 0.001F) && (tinymt32_generate_float01(&rndstate) < 0.0008F)) {
+      particles[i].goal_size = MAX_SIZE;
+    }
+
+    if(abs(particles[i].size - MAX_SIZE) < 0.001F) {
+      particles[i].goal_size = MIN_SIZE;
+    }
   }
 
   particles[i].ds += -(particles[i].size - particles[i].goal_size)/30.0F;
-  particles[i].size += particles[i].ds;
+  if(abs(particles[i].size - particles[i].goal_size) > 0.001) {
+    particles[i].size += particles[i].ds;
+  }
   if(particles[i].size > MAX_SIZE) particles[i].size = MAX_SIZE;
   if(particles[i].size < MIN_SIZE) particles[i].size = MIN_SIZE;
 }
@@ -195,41 +210,31 @@ void layer_update_callback(Layer *me, GContext* ctx) {
   (void)ctx;
 }
 
-void handle_tick(AppContextRef ctx, PebbleTickEvent *t) {
-  (void)t;
-  (void)ctx;
+void swarm_to_digit(int digit, int start_idx, int end_idx, int offset_x, int offset_y) {
+  int end = minimum(end_idx, NUM_PARTICLES);
 
-  PblTm current_time;
-  get_time(&current_time);
-}
+  for(int i=start_idx; i<end; i++) {
 
-void init_particles() {
-  for(int i=0; i<NUM_PARTICLES; i++) {
-    GPoint start = random_point_roughly_in_screen(10, 0);
-    // GPoint goal = GPoint(window.layer.frame.size.w/2, window.layer.frame.size.h/2);
+    GBitmap bitmap   = *number_bitmaps[digit];
+    const uint8_t *pixels = bitmap.addr;
 
     // pick a random point in the four image
     // get the image
     // pick a random number the length of the array
     // if the value is zero, pick a differnet number increment until you get there
     // move to that position
-    int image_length = s_4_bitmap.row_size_bytes * s_4_bitmap.bounds.size.h - 1;
+    int image_length = bitmap.row_size_bytes * bitmap.bounds.size.h - 1;
     int idx = random_in_range(0, image_length);
-    uint8_t pixel = s_4_pixels[idx];
+    uint8_t pixel = pixels[idx];
 
-    // guarantee we're on a non-zero pixel
+    // guarantee we're on a non-zero byte
     while(pixel == 0x00) {
      idx = random_in_range(0, image_length);
-     pixel = s_4_pixels[idx];
+     pixel = pixels[idx];
     }
 
-    // int bit_pos = (idx * 8) + __builtin_ctz(pixel); // e.g. 00011000 returns 3
-    //int bit_pos = (idx * 8) + __builtin_ctz(pixel); // e.g. 00011000 returns 3
-    //int bit_pos = (idx * 8) + __builtin_clz(pixel) - 24; // e.g. 00011000 returns 3
-    //int bit_pos = (idx * 8) + random_in_range( __builtin_ctz(pixel), __builtin_clz(pixel) - 24,);
-    //int bit_pos = (idx * 8) + random_in_range(__builtin_clz(pixel) - 24, 7 - __builtin_ctz(pixel)) - 1;
-    //int bit_pos = (idx * 8) + random_in_range(0, 7);
-    int bit_pos = (idx * 8);// + random_in_range(0, 7);
+    // pick a non-zero bit
+    int bit_pos = (idx * 8);
     int bit_add = random_in_range(0,7);
     int tries = 8;
     while(!(pixel & (1 << bit_add))) {
@@ -238,55 +243,67 @@ void init_particles() {
       tries--;
     }
     bit_pos += bit_add;
+
     
-    int row_size_bits = s_4_bitmap.row_size_bytes * 8;
+    int row_size_bits = bitmap.row_size_bytes * 8;
     int pixel_row = bit_pos / row_size_bits;
     int pixel_col = bit_pos % row_size_bits;
 
-    int origin = 30;
-    //GPoint goal = GPoint(pixel_row+origin, pixel_col+origin);
-    GPoint goal = GPoint(pixel_col+origin, pixel_row+origin);
-    //GPoint start = goal;
+    float scale = 1.5F;
+    GPoint goal = GPoint(scale*pixel_col+offset_x, scale*pixel_row+offset_y); // switch row & col
 
-    // 0000 
-    // 0001
-    // 0000
-    // 
-    // idx: 7
-    // (1,1)
-    // bc
-    // 
-    // row size = 4
-    // row = idx / row_size
-    // 1 = 7 / 4
-    // col = idx % row_size
-    // 3 = 7 % 4
+    particles[i].grav_center = FPoint(goal.x, goal.y);
+    particles[i].power = TIGHT_POWER;
+    particles[i].goal_size = 1.0F;
+  }
 
-    // 000
-    // 000
-    // 010
-    // idx: 7
-    // row = idx / row_size
-    // 2  = 7 / 3
-    // col = idx % row_size
-    // 1  =  7 % 3
+}
 
-    //  012345678
-    //  000000000 0
-    //  000000000 1
-    //  000000100 2
+unsigned short get_display_hour(unsigned short hour) {
+  if (clock_is_24h_style()) { return hour; }
+  unsigned short display_hour = hour % 12;
+  return display_hour ? display_hour : 12; // Converts "0" to "12"
+}
 
-    // (6,2)
-    // idx = 24
-    //   2 = 24 / 9
-    //   6 
+void display_time(PblTm *tick_time) {
+  showing_time = 1;
+  unsigned short hour = get_display_hour(tick_time->tm_hour);
+  int min = tick_time->tm_min;
 
-    // float initial_power = 300.0F;
-    float initial_power = 1.0F;
+  //int particles_per_group = NUM_PARTICLES / 2;
+  int particles_per_group = NUM_PARTICLES;
+
+  //int hr_digit_tens = hour / 10; 
+  //int hr_digit_ones = hour % 10; 
+  //int min_digit_tens = min / 10; 
+  //int min_digit_ones = min % 10; 
+
+  swarm_to_digit(4, 0, particles_per_group, 10, 10);
+}
+
+void handle_tick(AppContextRef ctx, PebbleTickEvent *t) {
+  (void)t;
+  (void)ctx;
+
+  PblTm current_time;
+  get_time(&current_time);
+  display_time(&current_time);
+}
+
+
+void init_particles() {
+  for(int i=0; i<NUM_PARTICLES; i++) {
+
+    GPoint start = random_point_roughly_in_screen(10, 0);
+    GPoint goal = GPoint(window.layer.frame.size.w/2, window.layer.frame.size.h/2);
+
+    // GPoint start = goal;
+    float initial_power = 300.0F;
+    // float initial_power = 1.0F;
     particles[i] = FParticle(start.x, start.y, 
                              goal.x, goal.y, 
                              initial_power);
-    particles[i].size = particles[i].goal_size = 1.0F;
+    particles[i].size = particles[i].goal_size = 0.0F;
   }
 }
 
