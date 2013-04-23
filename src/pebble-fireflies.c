@@ -205,7 +205,7 @@ void handle_tick(AppContextRef ctx, PebbleTickEvent *t) {
 
 void init_particles() {
   for(int i=0; i<NUM_PARTICLES; i++) {
-    // GPoint start = random_point_roughly_in_screen(10, 0);
+    GPoint start = random_point_roughly_in_screen(10, 0);
     // GPoint goal = GPoint(window.layer.frame.size.w/2, window.layer.frame.size.h/2);
 
     // pick a random point in the four image
@@ -228,8 +228,17 @@ void init_particles() {
     //int bit_pos = (idx * 8) + __builtin_clz(pixel) - 24; // e.g. 00011000 returns 3
     //int bit_pos = (idx * 8) + random_in_range( __builtin_ctz(pixel), __builtin_clz(pixel) - 24,);
     //int bit_pos = (idx * 8) + random_in_range(__builtin_clz(pixel) - 24, 7 - __builtin_ctz(pixel)) - 1;
-    int bit_pos = (idx * 8) + random_in_range(0, 7);
-
+    //int bit_pos = (idx * 8) + random_in_range(0, 7);
+    int bit_pos = (idx * 8);// + random_in_range(0, 7);
+    int bit_add = random_in_range(0,7);
+    int tries = 8;
+    while(!(pixel & (1 << bit_add))) {
+      if(tries < 0) break;
+      bit_add = random_in_range(0,7);
+      tries--;
+    }
+    bit_pos += bit_add;
+    
     int row_size_bits = s_4_bitmap.row_size_bytes * 8;
     int pixel_row = bit_pos / row_size_bits;
     int pixel_col = bit_pos % row_size_bits;
@@ -237,7 +246,7 @@ void init_particles() {
     int origin = 30;
     //GPoint goal = GPoint(pixel_row+origin, pixel_col+origin);
     GPoint goal = GPoint(pixel_col+origin, pixel_row+origin);
-    GPoint start = goal;
+    //GPoint start = goal;
 
     // 0000 
     // 0001
@@ -277,7 +286,7 @@ void init_particles() {
     particles[i] = FParticle(start.x, start.y, 
                              goal.x, goal.y, 
                              initial_power);
-    particles[i].size = particles[i].goal_size = 0.0F;
+    particles[i].size = particles[i].goal_size = 1.0F;
   }
 }
 
