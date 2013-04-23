@@ -218,10 +218,10 @@ void init_particles() {
     uint8_t pixel = s_4_pixels[idx];
 
     // guarantee we're on a non-zero pixel
-    //while(pixel == 0x00) {
-    //  idx = random_in_range(0, image_length);
-    //  pixel = s_4_pixels[idx];
-    //}
+    while(pixel == 0x00) {
+     idx = random_in_range(0, image_length);
+     pixel = s_4_pixels[idx];
+    }
 
     // int bit_pos = (idx * 8) + __builtin_ctz(pixel); // e.g. 00011000 returns 3
     //int bit_pos = (idx * 8) + __builtin_ctz(pixel); // e.g. 00011000 returns 3
