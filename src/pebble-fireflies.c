@@ -6,6 +6,7 @@
 #include "xprintf.h"
 #include "common.h"
 #include "tinymt32.h"
+#include "numbers.h"
 
 // defines
 #define MY_UUID { 0x74, 0x19, 0xF2, 0x5C, 0x82, 0x1B, 0x4B, 0xD8, 0x93, 0xD5, 0x98, 0x7E, 0x31, 0x15, 0xA8, 0xB6 }
@@ -14,8 +15,9 @@ PBL_APP_INFO(MY_UUID,
              1, 0, /* App version */
              RESOURCE_ID_IMAGE_MENU_ICON,
              APP_INFO_WATCH_FACE);
-#define NUM_PARTICLES 100
+#define NUM_PARTICLES 200
 #define COOKIE_MY_TIMER 1
+#define COOKIE_SWARM_TIMER 2
 #define max(a,b) a > b ? a : b
 #define minimum(a,b) ((a) < (b) ? (a) : (b))
 
@@ -76,9 +78,9 @@ GPoint random_point_in_screen() {
 }
 
 #define SCREEN_MARGIN 0.0F
-GPoint random_point_roughly_in_screen() {
-  return GPoint(random_in_range(-window.layer.frame.size.w*SCREEN_MARGIN, window.layer.frame.size.w+1+(window.layer.frame.size.w*SCREEN_MARGIN)), 
-                random_in_range(-window.layer.frame.size.h*SCREEN_MARGIN, window.layer.frame.size.h+1+(window.layer.frame.size.h*SCREEN_MARGIN)));
+GPoint random_point_roughly_in_screen(int margin, int padding) {
+  return GPoint(random_in_range(0-margin+padding, window.layer.frame.size.w+1+margin-padding), 
+                random_in_range(0-margin+padding, window.layer.frame.size.h+1+margin-padding));
 }
 
 #define JITTER 0.5F
@@ -166,6 +168,15 @@ void update_square_layer(Layer *me, GContext* ctx) {
   }
 }
 
+void swarm_to_a_different_location() {
+  GPoint new_gravity = random_point_in_screen();
+  FPoint new_gravityf = FPoint(new_gravity.x, new_gravity.y);
+  for(int i=0;i<NUM_PARTICLES;i++) {
+    particles[i].grav_center = new_gravityf;
+  }
+}
+
+
 void handle_timer(AppContextRef ctx, AppTimerHandle handle, uint32_t cookie) {
   (void)ctx;
   (void)handle;
@@ -173,6 +184,9 @@ void handle_timer(AppContextRef ctx, AppTimerHandle handle, uint32_t cookie) {
   if (cookie == COOKIE_MY_TIMER) {
     layer_mark_dirty(&square_layer);
     timer_handle = app_timer_send_event(ctx, 50 /* milliseconds */, COOKIE_MY_TIMER);
+  } else if (cookie == COOKIE_SWARM_TIMER) {
+    // swarm_to_a_different_location();
+    app_timer_send_event(ctx, random_in_range(5000,15000) /* milliseconds */, COOKIE_SWARM_TIMER);
   }
 }
 
@@ -191,9 +205,75 @@ void handle_tick(AppContextRef ctx, PebbleTickEvent *t) {
 
 void init_particles() {
   for(int i=0; i<NUM_PARTICLES; i++) {
-    GPoint start = random_point_roughly_in_screen();
-    GPoint goal = GPoint(window.layer.frame.size.w/2, window.layer.frame.size.h/2);
-    float initial_power = 300.0F;
+    // GPoint start = random_point_roughly_in_screen(10, 0);
+    // GPoint goal = GPoint(window.layer.frame.size.w/2, window.layer.frame.size.h/2);
+
+    // pick a random point in the four image
+    // get the image
+    // pick a random number the length of the array
+    // if the value is zero, pick a differnet number increment until you get there
+    // move to that position
+    int image_length = s_4_bitmap.row_size_bytes * s_4_bitmap.bounds.size.h - 1;
+    int idx = random_in_range(0, image_length);
+    uint8_t pixel = s_4_pixels[idx];
+
+    // guarantee we're on a non-zero pixel
+    //while(pixel == 0x00) {
+    //  idx = random_in_range(0, image_length);
+    //  pixel = s_4_pixels[idx];
+    //}
+
+    // int bit_pos = (idx * 8) + __builtin_ctz(pixel); // e.g. 00011000 returns 3
+    //int bit_pos = (idx * 8) + __builtin_ctz(pixel); // e.g. 00011000 returns 3
+    //int bit_pos = (idx * 8) + __builtin_clz(pixel) - 24; // e.g. 00011000 returns 3
+    //int bit_pos = (idx * 8) + random_in_range( __builtin_ctz(pixel), __builtin_clz(pixel) - 24,);
+    //int bit_pos = (idx * 8) + random_in_range(__builtin_clz(pixel) - 24, 7 - __builtin_ctz(pixel)) - 1;
+    int bit_pos = (idx * 8) + random_in_range(0, 7);
+
+    int row_size_bits = s_4_bitmap.row_size_bytes * 8;
+    int pixel_row = bit_pos / row_size_bits;
+    int pixel_col = bit_pos % row_size_bits;
+
+    int origin = 30;
+    //GPoint goal = GPoint(pixel_row+origin, pixel_col+origin);
+    GPoint goal = GPoint(pixel_col+origin, pixel_row+origin);
+    GPoint start = goal;
+
+    // 0000 
+    // 0001
+    // 0000
+    // 
+    // idx: 7
+    // (1,1)
+    // bc
+    // 
+    // row size = 4
+    // row = idx / row_size
+    // 1 = 7 / 4
+    // col = idx % row_size
+    // 3 = 7 % 4
+
+    // 000
+    // 000
+    // 010
+    // idx: 7
+    // row = idx / row_size
+    // 2  = 7 / 3
+    // col = idx % row_size
+    // 1  =  7 % 3
+
+    //  012345678
+    //  000000000 0
+    //  000000000 1
+    //  000000100 2
+
+    // (6,2)
+    // idx = 24
+    //   2 = 24 / 9
+    //   6 
+
+    // float initial_power = 300.0F;
+    float initial_power = 1.0F;
     particles[i] = FParticle(start.x, start.y, 
                              goal.x, goal.y, 
                              initial_power);
@@ -204,7 +284,7 @@ void init_particles() {
 void handle_init(AppContextRef ctx) {
   (void)ctx;
 
-  uint32_t seed = 0;
+  uint32_t seed = 4;
   tinymt32_init(&rndstate, seed);
 
   window_init(&window, "Fireflies");
@@ -236,6 +316,7 @@ void handle_init(AppContextRef ctx) {
   gpath_move_to(&square_path, grect_center_point(&square_layer.frame));
 
   timer_handle = app_timer_send_event(ctx, 50 /* milliseconds */, COOKIE_MY_TIMER);
+  app_timer_send_event(ctx, random_in_range(5000,15000) /* milliseconds */, COOKIE_SWARM_TIMER);
 }
 
 void handle_deinit(AppContextRef ctx) {
