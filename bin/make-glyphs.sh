@@ -10,8 +10,14 @@ GLYPHS_DIR=doc/glyphs
 rm -f $GLYPHS_DIR/*.png
 pushd $GLYPHS_DIR
 for i in $(seq 0 9); do
-  GDCL GlyphDesignerProject.GlyphProject glyphs -fs 100 -fo PlainText-txt -in "$i"
+  GDCL GlyphDesignerProject.GlyphProject glyphs -fs 50 -fo PlainText-txt -in "$i"
   convert -trim glyphs.png $i.png
 done
 rm glyphs.png
 rm glyphs.txt
+popd
+
+rm -f src/numbers.h || :
+for f in `find $GLYPHS_DIR -type f -name '*.png'`; do 
+  python /Users/nmurray/programming/c/pebble/pebble-sdk-release-001/sdk/tools/bitmapgen.py header $f >> src/numbers.h 
+done
