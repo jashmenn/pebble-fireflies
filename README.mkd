@@ -1,9 +1,11 @@
 # Fireflies
 _by Nate Murray_
 
-[![ScreenShot](X)](X)
+[![ScreenShot](http://i.imgur.com/S7KMI8o.png)](http://i.imgur.com/S7KMI8o.png)
+[![ScreenShot](http://i.imgur.com/ZHnMM4t.gif)](http://i.imgur.com/ZHnMM4t.gif)
 
-##[Download v1.0](x.pbw)
+##[Download v1.0](https://dl.dropboxusercontent.com/u/1747214/keep/pebble/pebble-fireflies-1.0.pbw)
+
 
 Join me on a magical forest adventure where monochrome fireflies dance on your
 wrist. Normally, the fireflies swarm and blink and dance, but every minute or
