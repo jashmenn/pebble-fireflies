@@ -18,9 +18,10 @@ PBL_APP_INFO(MY_UUID,
 #define maximum(a,b) a > b ? a : b
 #define minimum(a,b) ((a) < (b) ? (a) : (b))
 #define NUM_PARTICLES 140
-#define COOKIE_MY_TIMER 1
+#define COOKIE_ANIMATION_TIMER 1
 #define COOKIE_SWARM_TIMER 2
-#define NORMAL_POWER 300.0F
+#define COOKIE_DISPERSE_TIMER 3
+#define NORMAL_POWER 400.0F
 #define TIGHT_POWER 1.0F
 #define MAX_SPEED 1.0F
 #define SCREEN_MARGIN 0.0F
@@ -107,12 +108,8 @@ void update_particle(int i) {
   particles[i].position.x += particles[i].dx;
   particles[i].position.y += particles[i].dy;
 
-  if(particles[i].dx < 0.1F && particles[i].dy < 0.1F) {
-    // particles[i].grav_center = random_point_roughly_in_screen();
-  }
-
   // update size
-
+  // when we're showing the time, don't blink like you normally would
   if(showing_time == 0) {
     if((abs(particles[i].size - MIN_SIZE) < 0.001F) && (tinymt32_generate_float01(&rndstate) < 0.0008F)) {
       particles[i].goal_size = MAX_SIZE;
@@ -123,7 +120,7 @@ void update_particle(int i) {
     }
   }
 
-  particles[i].ds += -(particles[i].size - particles[i].goal_size)/random_in_rangef(1000.0F, 10000.0F);
+  particles[i].ds += -(particles[i].size - particles[i].goal_size)/random_in_rangef(1000.0F, 5000.0F);
   if(abs(particles[i].size - particles[i].goal_size) > 0.01) {
     particles[i].size += particles[i].ds;
   }
@@ -139,10 +136,8 @@ void draw_particle(GContext* ctx, int i) {
 
 void update_particles_layer(Layer *me, GContext* ctx) {
   (void)me;
-  static unsigned int angle = 0;
-
   // update debug text layer
-  static char test_text[100];
+  // static char test_text[100];
   // unsigned int foo = tinymt32_generate_uint32(&rndstate);
   // xsprintf( test_text, "rand: %u", random_in_range(0,10));
   // text_layer_set_text(&text_header_layer, test_text);
@@ -155,23 +150,36 @@ void update_particles_layer(Layer *me, GContext* ctx) {
 }
 
 void swarm_to_a_different_location() {
-  GPoint new_gravity = random_point_in_screen();
+  GPoint new_gravity = random_point_roughly_in_screen(0, 30);
   FPoint new_gravityf = FPoint(new_gravity.x, new_gravity.y);
   for(int i=0;i<NUM_PARTICLES;i++) {
     particles[i].grav_center = new_gravityf;
   }
 }
 
+void disperse_particles() {
+  for(int i=0;i<NUM_PARTICLES;i++) {
+    particles[i].power = NORMAL_POWER;
+    particles[i].goal_size = 0.0F;
+  }
+  swarm_to_a_different_location();
+}
+
 void handle_timer(AppContextRef ctx, AppTimerHandle handle, uint32_t cookie) {
   (void)ctx;
   (void)handle;
 
-  if (cookie == COOKIE_MY_TIMER) {
+  if (cookie == COOKIE_ANIMATION_TIMER) {
      layer_mark_dirty(&particle_layer);
-     timer_handle = app_timer_send_event(ctx, 50 /* milliseconds */, COOKIE_MY_TIMER);
+     timer_handle = app_timer_send_event(ctx, 50 /* milliseconds */, COOKIE_ANIMATION_TIMER);
   } else if (cookie == COOKIE_SWARM_TIMER) {
-    // swarm_to_a_different_location();
+    if(showing_time == 0) {
+      swarm_to_a_different_location();
+    }
     app_timer_send_event(ctx, random_in_range(5000,15000) /* milliseconds */, COOKIE_SWARM_TIMER);
+  } else if (cookie == COOKIE_DISPERSE_TIMER) {
+    showing_time = 0;
+    disperse_particles();
   }
 }
 
@@ -290,15 +298,19 @@ void display_time(PblTm *tick_time) {
 
 }
 
-void handle_tick(AppContextRef ctx, PebbleTickEvent *t) {
-  (void)t;
-  (void)ctx;
-
+void kickoff_display_time() {
   PblTm current_time;
   get_time(&current_time);
   display_time(&current_time);
+  // TODO put the disperse timer here
 }
 
+void handle_tick(AppContextRef ctx, PebbleTickEvent *t) {
+  (void)t;
+  (void)ctx;
+  kickoff_display_time();
+  app_timer_send_event(ctx, 12000 /* milliseconds */, COOKIE_DISPERSE_TIMER);
+}
 
 void init_particles() {
   for(int i=0; i<NUM_PARTICLES; i++) {
@@ -307,7 +319,7 @@ void init_particles() {
     GPoint goal = GPoint(window.layer.frame.size.w/2, window.layer.frame.size.h/2);
 
     // GPoint start = goal;
-    float initial_power = 300.0F;
+    float initial_power = NORMAL_POWER;
     // float initial_power = 1.0F;
     particles[i] = FParticle(start.x, start.y, 
                              goal.x, goal.y, 
@@ -315,6 +327,19 @@ void init_particles() {
     particles[i].size = particles[i].goal_size = 0.0F;
   }
 }
+
+void back_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
+  (void)recognizer;
+  (void)window;
+  kickoff_display_time();
+}
+
+
+void click_config_provider(ClickConfig **config, Window *window) {
+  (void)window;
+  config[BUTTON_ID_BACK]->click.handler = (ClickHandler) back_single_click_handler;
+}
+
 
 void handle_init(AppContextRef ctx) {
   (void)ctx;
@@ -325,6 +350,7 @@ void handle_init(AppContextRef ctx) {
   window_init(&window, "Fireflies");
   window_stack_push(&window, true /* Animated */);
   window_set_background_color(&window, GColorBlack);
+  window_set_click_config_provider(&window, (ClickConfigProvider) click_config_provider);
 
   // resource_init_current_app(&APP_RESOURCES);
 
@@ -347,7 +373,7 @@ void handle_init(AppContextRef ctx) {
   particle_layer.update_proc = update_particles_layer;
   layer_add_child(&window.layer, &particle_layer);
 
-  timer_handle = app_timer_send_event(ctx, 50 /* milliseconds */, COOKIE_MY_TIMER);
+  timer_handle = app_timer_send_event(ctx, 50 /* milliseconds */, COOKIE_ANIMATION_TIMER);
   app_timer_send_event(ctx, random_in_range(5000,15000) /* milliseconds */, COOKIE_SWARM_TIMER);
 }
 
