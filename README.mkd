@@ -5,7 +5,12 @@ _by Nate Murray_
 
 ##[Download v1.0](x.pbw)
 
-## Features
+Join me on a magical forest adventure where monochrome fireflies dance on your
+wrist. Normally, the fireflies swarm and blink and dance, but every minute or
+so, they join together and do their best to show you the time. They hold
+formation for only a moment, but the effort is to great for their little
+wings. In their excitement, they all glow together in unison and then quickly
+return to their natural state.
 
 ## Build Instructions
 
@@ -20,10 +25,9 @@ Set up waf:
 
 Configure and build:
 
-	./waf configure
-	./waf build
+  make compile
 
-Install `pebble-fireflies.pbw` in build directory
+Install `pebble-fireflies.pbw` in build directory. 
 
 ## License
 
