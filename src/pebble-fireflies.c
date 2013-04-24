@@ -18,7 +18,7 @@ PBL_APP_INFO(MY_UUID,
 #define NUM_PARTICLES 140
 #define COOKIE_MY_TIMER 1
 #define COOKIE_SWARM_TIMER 2
-#define max(a,b) a > b ? a : b
+#define maximum(a,b) a > b ? a : b
 #define minimum(a,b) ((a) < (b) ? (a) : (b))
 #define NORMAL_POWER 300.0F
 #define TIGHT_POWER 1.0F
@@ -47,7 +47,7 @@ typedef struct FParticle
 // globals
 FParticle particles[NUM_PARTICLES];
 Window window;
-Layer square_layer;
+Layer particle_layer;
 TextLayer text_header_layer;
 AppTimerHandle timer_handle;
 tinymt32_t rndstate;
@@ -108,7 +108,6 @@ void update_particle(int i) {
   particles[i].dx += -(particles[i].position.x - particles[i].grav_center.x)/particles[i].power;
   particles[i].dy += -(particles[i].position.y - particles[i].grav_center.y)/particles[i].power;
 
-
   // damping
   particles[i].dx *= 0.999F;
   particles[i].dy *= 0.999F;
@@ -152,30 +151,17 @@ void draw_particle(GContext* ctx, int i) {
                        particles[i].size);
 }
 
-void update_square_layer(Layer *me, GContext* ctx) {
+void update_particles_layer(Layer *me, GContext* ctx) {
   (void)me;
-
   static unsigned int angle = 0;
-
-  gpath_rotate_to(&square_path, (TRIG_MAX_ANGLE / 360) * angle);
-
-  angle = (angle + 5) % 360;
-
-  graphics_context_set_stroke_color(ctx, GColorWhite);
-  // gpath_draw_outline(ctx, &square_path);
 
   // update debug text layer
   static char test_text[100];
-  // int now = sin_lookup(angle * 32768 / 90);
-  // int then = linearmap(now, -65536, 65536, 0, 10);
-
-
   // unsigned int foo = tinymt32_generate_uint32(&rndstate);
   // xsprintf( test_text, "rand: %u", random_in_range(0,10));
   // text_layer_set_text(&text_header_layer, test_text);
 
   graphics_context_set_fill_color(ctx, GColorWhite);
-  // graphics_fill_circle(ctx, GPoint(window.layer.frame.size.w/2, window.layer.frame.size.h/2), then);
   for(int i=0;i<NUM_PARTICLES;i++) {
     update_particle(i);
     draw_particle(ctx, i);
@@ -190,14 +176,13 @@ void swarm_to_a_different_location() {
   }
 }
 
-
 void handle_timer(AppContextRef ctx, AppTimerHandle handle, uint32_t cookie) {
   (void)ctx;
   (void)handle;
 
   if (cookie == COOKIE_MY_TIMER) {
-    layer_mark_dirty(&square_layer);
-    timer_handle = app_timer_send_event(ctx, 50 /* milliseconds */, COOKIE_MY_TIMER);
+     layer_mark_dirty(&particle_layer);
+     timer_handle = app_timer_send_event(ctx, 50 /* milliseconds */, COOKIE_MY_TIMER);
   } else if (cookie == COOKIE_SWARM_TIMER) {
     // swarm_to_a_different_location();
     app_timer_send_event(ctx, random_in_range(5000,15000) /* milliseconds */, COOKIE_SWARM_TIMER);
@@ -315,9 +300,7 @@ void display_time(PblTm *tick_time) {
     particles[NUM_PARTICLES-1].grav_center = FPoint(68, 89);
     particles[NUM_PARTICLES-1].power = TIGHT_POWER;
     particles[NUM_PARTICLES-1].goal_size = 3.0F;
-
   }
-
 
 }
 
@@ -374,12 +357,12 @@ void handle_init(AppContextRef ctx) {
   text_layer_set_font(&text_header_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
   layer_add_child(&window.layer, &text_header_layer.layer);
  
-  layer_init(&square_layer, GRect(0,0, window.layer.frame.size.w, window.layer.frame.size.h));
-  square_layer.update_proc = update_square_layer;
-  layer_add_child(&window.layer, &square_layer);
+  layer_init(&particle_layer, GRect(0,0, window.layer.frame.size.w, window.layer.frame.size.h));
+  particle_layer.update_proc = update_particles_layer;
+  layer_add_child(&window.layer, &particle_layer);
 
   gpath_init(&square_path, &SQUARE_POINTS);
-  gpath_move_to(&square_path, grect_center_point(&square_layer.frame));
+  gpath_move_to(&square_path, grect_center_point(&particle_layer.frame));
 
   timer_handle = app_timer_send_event(ctx, 50 /* milliseconds */, COOKIE_MY_TIMER);
   app_timer_send_event(ctx, random_in_range(5000,15000) /* milliseconds */, COOKIE_SWARM_TIMER);
