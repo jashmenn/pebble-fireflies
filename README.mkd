@@ -2,6 +2,8 @@
 _by Nate Murray_
 
 [![ScreenShot](http://i.imgur.com/S7KMI8o.png)](http://i.imgur.com/S7KMI8o.png)
+
+[Click to see animation](http://i.imgur.com/ZHnMM4t.gif)
 [![ScreenShot](http://i.imgur.com/ZHnMM4t.gif)](http://i.imgur.com/ZHnMM4t.gif)
 
 ##[Download v1.0](https://dl.dropboxusercontent.com/u/1747214/keep/pebble/pebble-fireflies-1.0.pbw)
