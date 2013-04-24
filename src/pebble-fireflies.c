@@ -4,7 +4,6 @@
 #include "pebble_app.h"
 #include "pebble_fonts.h"
 #include "xprintf.h"
-#include "common.h"
 #include "tinymt32.h"
 #include "numbers.h"
 
@@ -15,13 +14,19 @@ PBL_APP_INFO(MY_UUID,
              1, 0, /* App version */
              RESOURCE_ID_IMAGE_MENU_ICON,
              APP_INFO_WATCH_FACE);
+
+#define maximum(a,b) a > b ? a : b
+#define minimum(a,b) ((a) < (b) ? (a) : (b))
 #define NUM_PARTICLES 140
 #define COOKIE_MY_TIMER 1
 #define COOKIE_SWARM_TIMER 2
-#define maximum(a,b) a > b ? a : b
-#define minimum(a,b) ((a) < (b) ? (a) : (b))
 #define NORMAL_POWER 300.0F
 #define TIGHT_POWER 1.0F
+#define MAX_SPEED 1.0F
+#define SCREEN_MARGIN 0.0F
+#define JITTER 0.5F
+#define MAX_SIZE 3.0F
+#define MIN_SIZE 0.0F
 
 typedef struct FPoint
 {
@@ -53,20 +58,6 @@ AppTimerHandle timer_handle;
 tinymt32_t rndstate;
 int showing_time = 0;
 
-const GPathInfo SQUARE_POINTS = {
-  4,
-  (GPoint []) {
-    {-25, -25},
-    {-25,  25},
-    { 25,  25},
-    { 25, -25}
-  }
-};
-
-GPath square_path;
-
-#define MAX_SPEED      1.0F
-
 static const GBitmap* number_bitmaps[10] = { 
   &s_0_bitmap, &s_1_bitmap, &s_2_bitmap, 
   &s_3_bitmap, &s_4_bitmap, &s_5_bitmap,
@@ -87,15 +78,10 @@ GPoint random_point_in_screen() {
                 random_in_range(0, window.layer.frame.size.h+1));
 }
 
-#define SCREEN_MARGIN 0.0F
 GPoint random_point_roughly_in_screen(int margin, int padding) {
   return GPoint(random_in_range(0-margin+padding, window.layer.frame.size.w+1+margin-padding), 
                 random_in_range(0-margin+padding, window.layer.frame.size.h+1+margin-padding));
 }
-
-#define JITTER 0.5F
-#define MAX_SIZE 3.0F
-#define MIN_SIZE 0.0F
 
 void update_particle(int i) {
   // 
@@ -360,9 +346,6 @@ void handle_init(AppContextRef ctx) {
   layer_init(&particle_layer, GRect(0,0, window.layer.frame.size.w, window.layer.frame.size.h));
   particle_layer.update_proc = update_particles_layer;
   layer_add_child(&window.layer, &particle_layer);
-
-  gpath_init(&square_path, &SQUARE_POINTS);
-  gpath_move_to(&square_path, grect_center_point(&particle_layer.frame));
 
   timer_handle = app_timer_send_event(ctx, 50 /* milliseconds */, COOKIE_MY_TIMER);
   app_timer_send_event(ctx, random_in_range(5000,15000) /* milliseconds */, COOKIE_SWARM_TIMER);
