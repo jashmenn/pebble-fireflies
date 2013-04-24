@@ -15,7 +15,7 @@ PBL_APP_INFO(MY_UUID,
              1, 0, /* App version */
              RESOURCE_ID_IMAGE_MENU_ICON,
              APP_INFO_WATCH_FACE);
-#define NUM_PARTICLES 100
+#define NUM_PARTICLES 140
 #define COOKIE_MY_TIMER 1
 #define COOKIE_SWARM_TIMER 2
 #define max(a,b) a > b ? a : b
@@ -68,10 +68,10 @@ GPath square_path;
 #define MAX_SPEED      1.0F
 
 static const GBitmap* number_bitmaps[10] = { 
-  &s_number_0_bitmap, &s_number_1_bitmap, &s_number_2_bitmap, 
-  &s_number_3_bitmap, &s_number_4_bitmap, &s_number_5_bitmap,
-  &s_number_6_bitmap, &s_number_7_bitmap, &s_number_8_bitmap, 
-  &s_number_9_bitmap 
+  &s_0_bitmap, &s_1_bitmap, &s_2_bitmap, 
+  &s_3_bitmap, &s_4_bitmap, &s_5_bitmap,
+  &s_6_bitmap, &s_7_bitmap, &s_8_bitmap, 
+  &s_9_bitmap 
 };
 
 int random_in_range(int min, int max) {
@@ -138,8 +138,8 @@ void update_particle(int i) {
     }
   }
 
-  particles[i].ds += -(particles[i].size - particles[i].goal_size)/30.0F;
-  if(abs(particles[i].size - particles[i].goal_size) > 0.001) {
+  particles[i].ds += -(particles[i].size - particles[i].goal_size)/random_in_rangef(1000.0F, 10000.0F);
+  if(abs(particles[i].size - particles[i].goal_size) > 0.01) {
     particles[i].size += particles[i].ds;
   }
   if(particles[i].size > MAX_SIZE) particles[i].size = MAX_SIZE;
@@ -171,9 +171,8 @@ void update_square_layer(Layer *me, GContext* ctx) {
 
 
   // unsigned int foo = tinymt32_generate_uint32(&rndstate);
-  xsprintf( test_text, "rand: %u", random_in_range(0,10));
-
-  text_layer_set_text(&text_header_layer, test_text);
+  // xsprintf( test_text, "rand: %u", random_in_range(0,10));
+  // text_layer_set_text(&text_header_layer, test_text);
 
   graphics_context_set_fill_color(ctx, GColorWhite);
   // graphics_fill_circle(ctx, GPoint(window.layer.frame.size.w/2, window.layer.frame.size.h/2), then);
@@ -249,12 +248,12 @@ void swarm_to_digit(int digit, int start_idx, int end_idx, int offset_x, int off
     int pixel_row = bit_pos / row_size_bits;
     int pixel_col = bit_pos % row_size_bits;
 
-    float scale = 1.5F;
+    float scale = 1.0F;
     GPoint goal = GPoint(scale*pixel_col+offset_x, scale*pixel_row+offset_y); // switch row & col
 
     particles[i].grav_center = FPoint(goal.x, goal.y);
     particles[i].power = TIGHT_POWER;
-    particles[i].goal_size = 1.0F;
+    particles[i].goal_size = random_in_rangef(2.0F, 3.5F);
   }
 
 }
@@ -271,14 +270,55 @@ void display_time(PblTm *tick_time) {
   int min = tick_time->tm_min;
 
   //int particles_per_group = NUM_PARTICLES / 2;
-  int particles_per_group = NUM_PARTICLES;
 
-  //int hr_digit_tens = hour / 10; 
-  //int hr_digit_ones = hour % 10; 
-  //int min_digit_tens = min / 10; 
-  //int min_digit_ones = min % 10; 
+  int hr_digit_tens = hour / 10; 
+  int hr_digit_ones = hour % 10; 
+  int min_digit_tens = min / 10; 
+  int min_digit_ones = min % 10; 
+  int w = window.layer.frame.size.w;
+  int h = window.layer.frame.size.h;
 
-  swarm_to_digit(4, 0, particles_per_group, 10, 10);
+  // take out 5 particles
+  // 2 for colon
+  // 3 for floaters
+  int save = 5;
+
+  if(hr_digit_tens == 0) {
+    int particles_per_group = (NUM_PARTICLES - save)/ 3;
+    swarm_to_digit(hr_digit_ones,                          0, particles_per_group,   25, 60);
+    swarm_to_digit(min_digit_tens,     particles_per_group, particles_per_group*2,   65, 60);
+    swarm_to_digit(min_digit_ones, (particles_per_group*2), NUM_PARTICLES - save,    95, 60);
+
+    // top colon
+    particles[NUM_PARTICLES-2].grav_center = FPoint(57, 69);
+    particles[NUM_PARTICLES-2].power = TIGHT_POWER;
+    particles[NUM_PARTICLES-2].goal_size = 3.0F;
+
+    // bottom colon
+    particles[NUM_PARTICLES-1].grav_center = FPoint(57, 89);
+    particles[NUM_PARTICLES-1].power = TIGHT_POWER;
+    particles[NUM_PARTICLES-1].goal_size = 3.0F;
+
+  } else {
+    int particles_per_group = (NUM_PARTICLES - save)/ 4;
+    swarm_to_digit(hr_digit_tens,                          0, particles_per_group,   10, 60);
+    swarm_to_digit(hr_digit_ones,      particles_per_group, particles_per_group*2, 40, 60);
+    swarm_to_digit(min_digit_tens, (particles_per_group*2), particles_per_group*3, 80, 60);
+    swarm_to_digit(min_digit_ones, (particles_per_group*3), NUM_PARTICLES - save,  110, 60);
+
+    // top colon
+    particles[NUM_PARTICLES-2].grav_center = FPoint(68, 69);
+    particles[NUM_PARTICLES-2].power = TIGHT_POWER;
+    particles[NUM_PARTICLES-2].goal_size = 3.0F;
+
+    // bottom colon
+    particles[NUM_PARTICLES-1].grav_center = FPoint(68, 89);
+    particles[NUM_PARTICLES-1].power = TIGHT_POWER;
+    particles[NUM_PARTICLES-1].goal_size = 3.0F;
+
+  }
+
+
 }
 
 void handle_tick(AppContextRef ctx, PebbleTickEvent *t) {
